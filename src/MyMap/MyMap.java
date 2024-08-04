@@ -1,6 +1,7 @@
 package MyMap;
 
 import java.util.*;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class MyMap<K, V> implements Map<K, V> {
     private static final int DEFAULT_INITIAL_CAPACITY = 16;
@@ -8,6 +9,7 @@ public class MyMap<K, V> implements Map<K, V> {
     private DataItem<K, V>[] map;
     private int arraySize;
     private int size;
+    private final ReentrantLock lock = new ReentrantLock();
 
     public MyMap() {
         this(DEFAULT_INITIAL_CAPACITY);
@@ -29,74 +31,104 @@ public class MyMap<K, V> implements Map<K, V> {
     }
 
     public int size() {
-        return size;
+        lock.lock();
+        try {
+            return size;
+        } finally {
+            lock.unlock();
+        }
     }
 
     public boolean isEmpty() {
-        return size == 0;
+        lock.lock();
+        try {
+            return size == 0;
+        } finally {
+            lock.unlock();
+        }
     }
 
     public boolean containsKey(Object key) {
-        int hashValue = hashCode(key);
-        DataItem<K, V> current = map[hashValue];
-        while (current != null) {
-            if (current.getKey().equals(key)) {
-                return true;
-            }
-            current = current.next;
-        }
-        return false;
-    }
-
-    public boolean containsValue(Object value) {
-        for (DataItem<K, V> item : map) {
-            while (item != null) {
-                if (item.getValue().equals(value)) {
-                    return true;
-                }
-                item = item.next;
-            }
-        }
-        return false;
-    }
-
-    public V get(Object key) {
-        int hashValue = hashCode(key);
-        DataItem<K, V> current = map[hashValue];
-        while (current != null) {
-            if (current.getKey().equals(key)) {
-                return current.getValue();
-            }
-            current = current.next;
-        }
-        return null;
-    }
-
-    public V put(K key, V value) {
-        if (size >= arraySize * LOAD_FACTOR) {
-            resize();
-        }
-
-        int hashValue = hashCode(key);
-        DataItem<K, V> current = map[hashValue];
-        if (current == null) {
-            map[hashValue] = new DataItem<>(key, value);
-        } else {
-            while (true) {
+        lock.lock();
+        try {
+            int hashValue = hashCode(key);
+            DataItem<K, V> current = map[hashValue];
+            while (current != null) {
                 if (current.getKey().equals(key)) {
-                    V oldValue = current.getValue();
-                    current.setValue(value);
-                    return oldValue;
-                }
-                if (current.next == null) {
-                    current.next = new DataItem<>(key, value);
-                    break;
+                    return true;
                 }
                 current = current.next;
             }
+            return false;
+        } finally {
+            lock.unlock();
         }
-        size++;
-        return null;
+    }
+
+    public boolean containsValue(Object value) {
+        lock.lock();
+        try {
+            for (DataItem<K, V> item : map) {
+                while (item != null) {
+                    if (item.getValue().equals(value)) {
+                        return true;
+                    }
+                    item = item.next;
+                }
+            }
+            return false;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public V get(Object key) {
+        lock.lock();
+        try {
+            int hashValue = hashCode(key);
+            DataItem<K, V> current = map[hashValue];
+            while (current != null) {
+                if (current.getKey().equals(key)) {
+                    return current.getValue();
+                }
+                current = current.next;
+            }
+            return null;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public V put(K key, V value) {
+        lock.lock();
+        try {
+            if (size >= arraySize * LOAD_FACTOR) {
+                resize();
+            }
+
+            int hashValue = hashCode(key);
+            DataItem<K, V> current = map[hashValue];
+            if (current == null) {
+                map[hashValue] = new DataItem<>(key, value);
+            } else {
+                while (true) {
+                    if (current.getKey().equals(key)) {
+                        V oldValue = current.getValue();
+                        current.setValue(value);
+                        return oldValue;
+                    }
+                    if (current.next == null) {
+                        current.next = new DataItem<>(key, value);
+                        break;
+                    }
+                    current = current.next;
+                }
+            }
+            size++;
+            return null;
+        } finally {
+            lock.unlock();
+        }
     }
 
     private void resize() {
@@ -120,87 +152,122 @@ public class MyMap<K, V> implements Map<K, V> {
     }
 
     public V remove(Object key) {
-        int hashValue = hashCode(key);
-        DataItem<K, V> current = map[hashValue];
-        DataItem<K, V> prev = null;
+        lock.lock();
+        try {
+            int hashValue = hashCode(key);
+            DataItem<K, V> current = map[hashValue];
+            DataItem<K, V> prev = null;
 
-        while (current != null) {
-            if (current.getKey().equals(key)) {
-                if (prev == null) {
-                    map[hashValue] = current.next;
-                } else {
-                    prev.next = current.next;
+            while (current != null) {
+                if (current.getKey().equals(key)) {
+                    if (prev == null) {
+                        map[hashValue] = current.next;
+                    } else {
+                        prev.next = current.next;
+                    }
+                    size--;
+                    return current.getValue();
                 }
-                size--;
-                return current.getValue();
+                prev = current;
+                current = current.next;
             }
-            prev = current;
-            current = current.next;
+            return null;
+        } finally {
+            lock.unlock();
         }
-        return null;
     }
 
     public void putAll(Map<? extends K, ? extends V> m) {
-        for (Entry<? extends K, ? extends V> entry : m.entrySet()) {
-            put(entry.getKey(), entry.getValue());
+        lock.lock();
+        try {
+            for (Entry<? extends K, ? extends V> entry : m.entrySet()) {
+                put(entry.getKey(), entry.getValue());
+            }
+        } finally {
+            lock.unlock();
         }
     }
 
     public void clear() {
-        Arrays.fill(map, null);
-        size = 0;
+        lock.lock();
+        try {
+            Arrays.fill(map, null);
+            size = 0;
+        } finally {
+            lock.unlock();
+        }
     }
 
     public Set<K> keySet() {
-        Set<K> keySet = new HashSet<>();
-        for (DataItem<K, V> item : map) {
-            while (item != null) {
-                keySet.add(item.getKey());
-                item = item.next;
+        lock.lock();
+        try {
+            Set<K> keySet = new HashSet<>();
+            for (DataItem<K, V> item : map) {
+                while (item != null) {
+                    keySet.add(item.getKey());
+                    item = item.next;
+                }
             }
+            return keySet;
+        } finally {
+            lock.unlock();
         }
-        return keySet;
     }
 
     public Collection<V> values() {
-        Collection<V> values = new ArrayList<>();
-        for (DataItem<K, V> item : map) {
-            while (item != null) {
-                values.add(item.getValue());
-                item = item.next;
+        lock.lock();
+        try {
+            Collection<V> values = new ArrayList<>();
+            for (DataItem<K, V> item : map) {
+                while (item != null) {
+                    values.add(item.getValue());
+                    item = item.next;
+                }
             }
+            return values;
+        } finally {
+            lock.unlock();
         }
-        return values;
     }
 
     public Set<Entry<K, V>> entrySet() {
-        Set<Entry<K, V>> entrySet = new HashSet<>();
-        for (DataItem<K, V> item : map) {
-            while (item != null) {
-                entrySet.add(item);
-                item = item.next;
+        lock.lock();
+        try {
+            Set<Entry<K, V>> entrySet = new HashSet<>();
+            for (DataItem<K, V> item : map) {
+                while (item != null) {
+                    entrySet.add(item);
+                    item = item.next;
+                }
             }
+            return entrySet;
+        } finally {
+            lock.unlock();
         }
-        return entrySet;
     }
 
     public String toString() {
-        StringBuilder result = new StringBuilder();
-        result.append("{");
-        boolean first = true;
+        lock.lock();
+        try {
+            StringBuilder result = new StringBuilder();
+            result.append("{");
+            boolean first = true;
 
-        for (DataItem<K, V> item : map) {
-            while (item != null) {
-                if (!first) {
-                    result.append(", ");
+            for (DataItem<K, V> item : map) {
+                while (item != null) {
+                    if (!first) {
+                        result.append(", ");
+                    }
+                    result.append(item.getKey()).append("=").append(item.getValue());
+                    first = false;
+                    item = item.next;
                 }
-                result.append(item.getKey()).append("=").append(item.getValue());
-                first = false;
-                item = item.next;
             }
-        }
 
-        result.append("}");
-        return result.toString();
+            result.append("}");
+            return result.toString();
+        } finally {
+            lock.unlock();
+        }
     }
 }
