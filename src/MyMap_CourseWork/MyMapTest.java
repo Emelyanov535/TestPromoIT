@@ -1,9 +1,12 @@
-package MyMap;
+package MyMap_CourseWork;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -13,7 +16,7 @@ class MyMapTest {
 
     @BeforeEach
     void setUp() {
-        map = new MyMap<String, Integer>();
+        map = new MyMap<>();
     }
 
     @Test
@@ -137,5 +140,85 @@ class MyMapTest {
         String mapString = map.toString();
         assertTrue(mapString.contains("one=1"));
         assertTrue(mapString.contains("two=2"));
+    }
+
+    @Test
+    void testConcurrentPut() throws InterruptedException {
+        int numThreads = 4;
+        int numEntriesPerThread = 1000;
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        CountDownLatch latch = new CountDownLatch(numThreads);
+
+        for (int i = 0; i < numThreads; i++) {
+            final int threadIndex = i;
+            executor.submit(() -> {
+                try {
+                    for (int j = 0; j < numEntriesPerThread; j++) {
+                        map.put("key" + (threadIndex * numEntriesPerThread + j), j);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await();
+        executor.shutdown();
+
+        int expectedSize = numThreads * numEntriesPerThread;
+        int actualSize = map.size();
+        assertEquals(expectedSize, actualSize, () -> "Expected size: " + expectedSize + ", but got: " + actualSize);
+
+        if (expectedSize != actualSize) {
+            System.out.println("Map contents: " + map);
+        }
+    }
+
+    @Test
+    void testConcurrentPutAndGet() throws InterruptedException {
+        int numThreads = 4;
+        int numEntriesPerThread = 1000;
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads * 2);
+        CountDownLatch latch = new CountDownLatch(numThreads * 2);
+
+        for (int i = 0; i < numThreads; i++) {
+            final int threadIndex = i;
+            executor.submit(() -> {
+                try {
+                    for (int j = 0; j < numEntriesPerThread; j++) {
+                        map.put("key" + (threadIndex * numEntriesPerThread + j), j);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    latch.countDown();
+                }
+            });
+
+            executor.submit(() -> {
+                try {
+                    for (int j = 0; j < numEntriesPerThread; j++) {
+                        map.get("key" + (threadIndex * numEntriesPerThread + j));
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await();
+        executor.shutdown();
+
+        int expectedSize = numThreads * numEntriesPerThread;
+        int actualSize = map.size();
+        assertEquals(expectedSize, actualSize, () -> "Expected size: " + expectedSize + ", but got: " + actualSize);
+
+        for (int i = 0; i < numThreads * numEntriesPerThread; i++) {
+            assertNotNull(map.get("key" + i), "Expected to find key" + i + " but it was missing");
+        }
     }
 }

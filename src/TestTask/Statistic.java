@@ -1,3 +1,5 @@
+package TestTask;
+
 public class Statistic {
     private final Integer countRecord;
     private final Integer countChars;

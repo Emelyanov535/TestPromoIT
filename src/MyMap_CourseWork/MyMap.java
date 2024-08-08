@@ -1,4 +1,4 @@
-package MyMap;
+package MyMap_CourseWork;
 
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
@@ -10,7 +10,46 @@ public class MyMap<K, V> implements Map<K, V> {
     private int arraySize;
     private int size;
     private final ReentrantLock lock = new ReentrantLock();
+    private static class DataItem<K, V> implements Map.Entry<K, V> {
+        private final K key;
+        private V value;
+        DataItem<K, V> next;
 
+        public DataItem(K key, V value) {
+            this.key = key;
+            this.value = value;
+            this.next = null;
+        }
+
+        public K getKey() {
+            return key;
+        }
+
+        public V getValue() {
+            return value;
+        }
+
+        public V setValue(V value) {
+            V oldValue = this.value;
+            this.value = value;
+            return oldValue;
+        }
+
+        public int hashCode() {
+            return Objects.hash(key, value);
+        }
+
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DataItem<?, ?> dataItem = (DataItem<?, ?>) o;
+            return Objects.equals(key, dataItem.key) && Objects.equals(value, dataItem.value);
+        }
+
+        public String toString() {
+            return key + "=" + value;
+        }
+    }
     public MyMap() {
         this(DEFAULT_INITIAL_CAPACITY);
     }
@@ -137,7 +176,8 @@ public class MyMap<K, V> implements Map<K, V> {
 
         for (DataItem<K, V> item : map) {
             while (item != null) {
-                int hashValue = item.getKey().hashCode() % newCapacity;
+                Object key = item.getKey();
+                int hashValue = (key == null) ? 0 : Math.abs(key.hashCode() % newCapacity);
                 DataItem<K, V> nextItem = item.next;
 
                 item.next = newMap[hashValue];

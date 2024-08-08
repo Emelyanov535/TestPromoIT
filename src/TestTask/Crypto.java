@@ -1,3 +1,5 @@
+package TestTask;
+
 public class Crypto {
     public String encrypt(String input) {
         StringBuilder encrypted = new StringBuilder();
